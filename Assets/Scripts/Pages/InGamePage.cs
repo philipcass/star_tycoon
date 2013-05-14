@@ -7,10 +7,7 @@ public class InGamePage : BPage {
  
     bool _haveAction = true;
 
-    public int CollectedResources { get; set; }
-
-    List<Planet> MyPlanets = new List<Planet>();
-    FButton[,] AllPlanets;
+    PlanetButton[,] AllPlanets;
     SpaceBackground background;
     float _planetCost;
 
@@ -38,12 +35,13 @@ public class InGamePage : BPage {
 
     floatContainer timerLabelvalue;
     FLabel timerLabel;
-    int _waitTime = 3;
 
     Player player1 = new Player(Color.red);
     Player player2 = new Player(Color.blue);
 
     override public void Start() {
+        player1 = new Player(Color.red);
+        player2 = new Player(Color.blue);
         background = new SpaceBackground();
         background.alpha = 0;
         this.AddChild(background);
@@ -83,13 +81,13 @@ public class InGamePage : BPage {
         AddChild(timerLabel);
      
         PlanetCost = 50;
-        CollectedResources = 1000000;
-        BaseMain.Instance.StartCoroutine(collectResources());
+        player1.CollectedResources = 1000000;
+        player2.CollectedResources = 1000000;
     }
 
 	void CreateGameMap (float width)	
 	{
-        AllPlanets = new FButton[(int)width / 64, (int)width / 64];
+        AllPlanets = new PlanetButton[(int)width / 64, (int)width / 64];
 		float halfWidth = width / 2;
 		int arrayLen = (int)width / 64;
 		arrayLen--;
@@ -97,29 +95,17 @@ public class InGamePage : BPage {
 		for (float y = -halfWidth; y < 0; y += 64) {
 			for (float x = -halfWidth; x < halfWidth; x += 64) {
 				Planet p1 = new Planet ();
-				FButton butt = CreatePlanetButton (x, y, p1);
-				Debug.Log (string.Format ("{0},{1}", (int)(y + halfWidth) / 64, (int)(x + halfWidth) / 64));
+				PlanetButton butt = new PlanetButton(x, y, p1, onClick);
+//				Debug.Log (string.Format ("{0},{1}", (int)(y + halfWidth) / 64, (int)(x + halfWidth) / 64));
 				AllPlanets [(int)(y + halfWidth) / 64, (int)(x + halfWidth) / 64] = butt;
 				Planet p2 = new Planet ();
 				//Make the resource count the same as for player1 side to keep game fair
 				p2.ResourceCount = p1.ResourceCount;
-				butt = CreatePlanetButton ((x * -1) - 64, (y * -1) - 64, p2);
+				butt = new PlanetButton((x * -1) - 64, (y * -1) - 64, p2, onClick);
 				AllPlanets [arrayLen - ((int)(y + halfWidth) / 64), arrayLen - ((int)(x + halfWidth) / 64)] = butt;
 			}
 		}
 	}
-
-    FButton CreatePlanetButton(float x, float y, Planet p) {
-        FButton butt = new FButton(Futile.whiteElement.name);
-        butt.SetAnchor(0, 0);
-        butt.scale = 3;
-        butt.SetPosition(x, y);
-        butt.SignalReleaseOutside += onClick;
-        butt.data = p;
-        butt.AddLabel("Abstract", p.ResourceCount.ToString(), Color.black);
-        butt.label.scale *= .5f;
-        return butt;
-    }
 
     private void showGrid(float width, float height) {
         TweenChain chainY = new TweenChain();
@@ -145,7 +131,8 @@ public class InGamePage : BPage {
         chainX.play();
     }
 
-    public void onClick(FButton button) {
+    public void onClick(PlanetButton button) {
+
         Player claimant = ((Planet)button.data).Owner;
 
         if(claimant == null)
@@ -161,7 +148,7 @@ public class InGamePage : BPage {
         if(((Planet)button.data).Owner != null)
             return;
 
-        if(_haveAction && CollectedResources >= PlanetCost) {
+        if(_haveAction && claimant.CollectedResources >= PlanetCost) {
             ClaimPlanet(button, claimant);
         } else {
             this.resLabel.alpha = 0;
@@ -169,16 +156,16 @@ public class InGamePage : BPage {
         }
     }
 
-    private void ClaimPlanet(FButton button, Player claimant) {
-        CollectedResources -= PlanetCost;
+    private void ClaimPlanet(PlanetButton button, Player claimant) {
+        claimant.CollectedResources -= PlanetCost;
         button.sprite.color = claimant.Color;
         ((Planet)button.data).Owner = claimant;
-        MyPlanets.Add((Planet)button.data);
+        claimant.MyPlanets.Add((Planet)button.data);
         _planetCost *= 1.10f;
         ActivateNeighbors(button);
     }
 
-    private void ActivateNeighbors(FButton button) {
+    private void ActivateNeighbors(PlanetButton button) {
         int buttony = -1;
         int buttonx = -1;
         GetPlanetArrayPosition(button, ref buttony, ref buttonx);
@@ -193,7 +180,7 @@ public class InGamePage : BPage {
             AddChild(AllPlanets[buttony+1,buttonx]);
     }
 
-    void GetPlanetArrayPosition(FButton button, ref int buttony, ref int buttonx) {
+    void GetPlanetArrayPosition(PlanetButton button, ref int buttony, ref int buttonx) {
         for(int y = 0;y <= AllPlanets.GetUpperBound(0);y++) {
             for(int x = 0;x <= AllPlanets.GetUpperBound(1);x++) {
                 if(button == AllPlanets[y, x]) {
@@ -202,20 +189,6 @@ public class InGamePage : BPage {
                 }
             }
         }
-    }
-
-    private void enableAction() {
-        _haveAction = true;
-    }
-
-    private IEnumerator collectResources() {
-        timerLabelvalue.val = 3;
-        Go.to(this.timerLabelvalue, 3, new TweenConfig().floatProp("val", 0));
-        yield return new WaitForSeconds(_waitTime);
-     
-        int newResource = MyPlanets.Sum(p => p.ResourceCount);
-        CollectedResources += newResource;
-        BaseMain.Instance.StartCoroutine(collectResources());
     }
 
     override public void HandleAddedToStage() {
@@ -229,7 +202,7 @@ public class InGamePage : BPage {
     }
 
     void HandleUpdate() {
-        resLabel.text = string.Format("Resources: {0}", CollectedResources);
+        resLabel.text = string.Format("Resources: {0}", player1.CollectedResources);
         costLabel.text = string.Format("Cost: {0}", PlanetCost);
         shipLabel.text = string.Format("Ships: {0}", shipAmount);
         timerLabel.text = Mathf.CeilToInt(timerLabelvalue.val).ToString();
